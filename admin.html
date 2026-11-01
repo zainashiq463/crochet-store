@@ -1,0 +1,40 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Admin</title>
+<style>
+:root{--ink:#2B1D4A;--g:#1F9D55;--r:#C0392B}*{box-sizing:border-box}body{margin:0;font:16px/1.5 system-ui,sans-serif;background:#EEE9F8;color:var(--ink)}
+.w{max-width:720px;margin:0 auto;padding:16px 16px 90px}
+input,button{font:inherit;width:100%;padding:11px;border:1px solid #cfc6e6;border-radius:10px;margin:4px 0 10px;background:#fff}
+button{background:var(--ink);color:#fff;border:0;cursor:pointer;font-weight:700}button.s{width:auto;padding:6px 12px;margin:2px}button.d{background:var(--r)}
+nav{display:flex;gap:8px}nav button{background:#fff;color:var(--ink)}nav button.on{background:var(--ink);color:#fff}
+.c{background:#fff;border-radius:14px;padding:14px;margin:12px 0}.c input{background:#faf8ff}.row{display:flex;gap:8px;flex-wrap:wrap}.row img{width:70px;height:70px;object-fit:cover;border-radius:8px;display:block}
+.t{display:flex;justify-content:space-between;border-bottom:1px solid #eee;padding:6px 0}.bar{height:8px;background:var(--g);border-radius:4px}
+.sv{position:fixed;left:0;right:0;bottom:0;padding:10px 16px;background:#EEE9F8}.sv button{background:var(--g);margin:0}
+</style></head><body><div class="w" id="app"></div>
+<script>
+const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let T=localStorage.tok||'',D,tab='p';
+const api=async(p,o={})=>{const r=await fetch('/api/'+p,{...o,headers:{'x-token':T,'content-type':'application/json'}});if(r.status===401&&p!=='login'){localStorage.tok=T='';login();throw 0}return r};
+const shrink=(f,m,t)=>new Promise(r=>{const i=new Image();i.onload=()=>{const k=Math.min(1,m/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=i.width*k;c.height=i.height*k;c.getContext('2d').drawImage(i,0,0,c.width,c.height);r(c.toDataURL(t,.8))};i.src=URL.createObjectURL(f)});
+const up=async(f,m,t)=>(await(await api('img',{method:'POST',body:await shrink(f,m,t)})).json()).id;
+function login(){$('#app').innerHTML='<h2>Admin login</h2><input id="pw" type="password" placeholder="Password"><button onclick="go()">Login</button>'}
+async function go(){const r=await api('login',{method:'POST',body:JSON.stringify({password:$('#pw').value})});const j=await r.json();if(j.token){localStorage.tok=T=j.token;init()}else alert(j.error||'Error')}
+async function init(){if(!T)return login();try{await api('ping');D=await(await fetch('/api/data')).json();show('p')}catch(x){}}
+async function show(t){tab=t;const n=(k,l)=>`<button class="${tab==k?'on':''}" onclick="show('${k}')">${l}</button>`;
+ $('#app').innerHTML=`<nav>${n('p','Products')}${n('s','Settings')}${n('t','Traffic')}</nav>`+(t=='p'?P():t=='s'?S():await Tr())+(t=='t'?'':'<div class="sv"><button onclick="save()">Save changes</button></div>')}
+const P=()=>D.products.map((p,i)=>`<div class="c"><input value="${esc(p.name)}" placeholder="Naam" onchange="D.products[${i}].name=this.value"><input value="${esc(p.desc)}" placeholder="Description" onchange="D.products[${i}].desc=this.value"><input type="number" value="${p.price}" placeholder="Price (Rs)" onchange="D.products[${i}].price=+this.value">
+<label><input type="checkbox" style="width:auto" ${p.out?'checked':''} onchange="D.products[${i}].out=this.checked"> Sold out</label>
+<div class="row">${p.imgs.map((m,j)=>`<div><img src="/api/img/${m}"><button class="s d" onclick="rm(${i},${j})">✕</button></div>`).join('')}</div>
+<input type="file" accept="image/*" multiple onchange="addImg(${i},this.files)"><button class="s d" onclick="if(confirm('Delete product?')){D.products.splice(${i},1);show('p')}">Delete product</button></div>`).join('')+`<button onclick="D.products.push({id:Date.now().toString(36),name:'',desc:'',price:0,imgs:[]});show('p')">+ Naya product</button>`;
+async function addImg(i,fs){for(const f of fs)D.products[i].imgs.push(await up(f,900,'image/jpeg'));show('p')}
+async function rm(i,j){const[id]=D.products[i].imgs.splice(j,1);api('img/'+id,{method:'DELETE'});show('p')}
+const S=()=>{const s=D.settings,f=(k,l)=>`<label>${l}<input value="${esc(s[k])}" onchange="D.settings.${k}=this.value"></label>`;
+ return `<div class="c">${f('name','Store name')}${f('tagline','Tagline')}${f('wa','WhatsApp (923001234567, bina + ya 0)')}${f('insta','Instagram handle (bina @)')}
+ <p>Logo:</p>${s.logo?`<img src="/api/img/${s.logo}" height="60">`:''}<input type="file" accept="image/*" onchange="logo(this.files[0])"></div>`}
+async function logo(f){D.settings.logo=await up(f,300,'image/png');show('s')}
+async function save(){const r=await api('data',{method:'PUT',body:JSON.stringify(D)});alert(r.ok?'Saved ✅':'Error')}
+async function Tr(){const a=await(await api('stats')).json(),sum=n=>a.slice(-n).reduce((x,y)=>x+y.v,0),ag=(k)=>{const o={};a.forEach(x=>Object.entries(x[k]).forEach(([n,v])=>o[n]=(o[n]||0)+v));return Object.entries(o).sort((x,y)=>y[1]-x[1])};
+ const L=l=>l.length?l.map(([n,v])=>`<div class="t"><span>${esc(n)}</span><b>${v}</b></div>`).join(''):'<p>Abhi data nahi.</p>',mx=Math.max(1,...a.map(x=>x.v));
+ return `<div class="c"><b>Visits</b><div class="t"><span>Aaj</span><b>${sum(1)}</b></div><div class="t"><span>7 din</span><b>${sum(7)}</b></div><div class="t"><span>30 din</span><b>${sum(30)}</b></div></div>
+ <div class="c"><b>Kahan se aaye</b>${L(ag('src'))}</div><div class="c"><b>WhatsApp clicks (product-wise)</b>${L(ag('clk'))}</div>
+ <div class="c"><b>Roz ke visits</b>${a.slice().reverse().map(x=>`<div class="t"><span>${x.d.slice(5)}</span><span style="width:60%"><div class="bar" style="width:${x.v/mx*100}%"></div></span><b>${x.v}</b></div>`).join('')}</div>`}
+init();
+</script></body></html>
