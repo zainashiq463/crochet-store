@@ -1,5 +1,5 @@
 {
-  "name": "crochet-store",
+  "name": "hscollection",
   "main": "worker.js",
   "compatibility_date": "2026-10-01",
   "assets": { "directory": "./public", "binding": "ASSETS" },
